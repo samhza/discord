@@ -1,6 +1,8 @@
 package interactions
 
 import (
+	"crypto/ed25519"
+	"encoding/hex"
 	"net/http"
 
 	"github.com/diamondburned/arikawa/v3/api"
@@ -61,4 +63,23 @@ func (c *Client) editMessage(tok, id string, data webhook.EditMessageData) (*dis
 	var msg *discord.Message
 	return msg, sendpart.PATCH(c.Client, data, &msg,
 		api.EndpointWebhooks+c.ID.String()+"/"+tok+"/messages/"+id)
+}
+
+// VerifyRequest verifies that a request with the given headers and body is
+// from Discord itself.
+func VerifyRequest(h http.Header, body []byte, key ed25519.PublicKey) bool {
+	sigstr := h.Get("X-Signature-Ed25519")
+	if sigstr == "" {
+		return false
+	}
+	sig, err := hex.DecodeString(sigstr)
+	if err != nil {
+		return false
+	}
+	timestamp := h.Get("X-Signature-Timestamp")
+	if timestamp == "" {
+		return false
+	}
+	msg := append([]byte(timestamp), body...)
+	return ed25519.Verify(key, msg, []byte(sig))
 }
